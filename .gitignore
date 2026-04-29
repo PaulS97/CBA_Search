@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Node / frontend
+node_modules/
+dist/
+
+# Mac
+.DS_Store
+
+# Your project-specific
+Industry Data Project/
+outputs/
+_rag_cache/
+.env

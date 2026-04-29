@@ -1,0 +1,18 @@
+[
+  {
+    "question_id": "effective_date",
+    "question_text": "What is the effective date of this agreement?",
+    "answer_type": "date",
+    "unit": null,
+    "description": "Return the official effective date of the agreement.",
+    "ranking_direction": "ascending"
+  },
+  {
+    "question_id": "expiration_date",
+    "question_text": "What is the amendable or expiration date of this agreement?",
+    "answer_type": "date",
+    "unit": null,
+    "description": "Return the amendable or expiration date stated in the agreement.",
+    "ranking_direction": "ascending"
+  }
+]

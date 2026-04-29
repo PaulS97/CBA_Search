@@ -1,0 +1,40 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "Debug: answer_with_rag",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/answer_with_rag.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "args": [
+                "--pdf",
+                "/Users/paulseham/Documents/CBA_Search/Industry Data Project/Air Canada/CBA Unifor AC 2020-2026.pdf",
+                "--question",
+                "What is the effective date of this agreement?",
+                "--answer-type",
+                "date"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        
+        {
+            "name": "Debug: ingest_documents",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/ingest_folder.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "args": [
+                "--root",
+                "/Users/paulseham/Documents/CBA_Search/Industry Data Project/Air Canada",
+                "--dry-run",
+                "--name-contains",
+                "cba"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}

@@ -1,0 +1,6 @@
+chromadb
+fastapi
+openai
+pymupdf
+python-dotenv
+uvicorn

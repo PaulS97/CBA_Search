@@ -1,0 +1,26 @@
+[
+  {
+    "question_id": "effective_date",
+    "question_text": "What is the effective date of this agreement?",
+    "answer_type": "date",
+    "unit": null,
+    "description": "Return the effective date stated in the agreement.",
+    "ranking_direction": "ascending"
+  },
+  {
+    "question_id": "sick_days_per_year",
+    "question_text": "How many sick leave days do employees get at the beginning of each year?",
+    "answer_type": "number",
+    "unit": "days",
+    "description": "Return the annual sick leave entitlement if stated or directly inferable from the evidence.",
+    "ranking_direction": "descending"
+  },
+  {
+    "question_id": "contains_sick_leave_provision",
+    "question_text": "Does this agreement contain a sick leave provision?",
+    "answer_type": "boolean",
+    "unit": null,
+    "description": "Return whether the agreement includes a sick leave provision based only on retrieved evidence.",
+    "ranking_direction": null
+  }
+]
