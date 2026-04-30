@@ -6,6 +6,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      "/choose-folder": "http://127.0.0.1:8000",
       "/health": "http://127.0.0.1:8000",
       "/process-documents": "http://127.0.0.1:8000",
       "/process-progress": "http://127.0.0.1:8000",

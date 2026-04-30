@@ -42,6 +42,12 @@ export function processDocuments(payload) {
   });
 }
 
+export function chooseFolder() {
+  return request("/choose-folder", {
+    method: "POST"
+  });
+}
+
 export function runQuestions(payload) {
   return request("/run-questions", {
     method: "POST",

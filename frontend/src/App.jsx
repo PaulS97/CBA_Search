@@ -5,6 +5,7 @@ import QuestionBuilderPanel from "./components/QuestionBuilderPanel";
 import ResultsTable from "./components/ResultsTable";
 import {
   cancelRunQuestions,
+  chooseFolder,
   fetchLatestResults,
   fetchProcessProgress,
   fetchQaProgress,
@@ -70,6 +71,7 @@ export default function App() {
   const [processResult, setProcessResult] = useState(null);
   const [processError, setProcessError] = useState("");
   const [processLoading, setProcessLoading] = useState(false);
+  const [folderPickerLoading, setFolderPickerLoading] = useState(false);
   const [processProgress, setProcessProgress] = useState(null);
 
   const [questions, setQuestions] = useState(DEFAULT_QUESTIONS);
@@ -223,6 +225,21 @@ export default function App() {
     }
   }
 
+  async function handleChooseFolder() {
+    setProcessError("");
+    setFolderPickerLoading(true);
+    try {
+      const payload = await chooseFolder();
+      if (payload?.path) {
+        updateProcessField("root", payload.path);
+      }
+    } catch (error) {
+      setProcessError(error.message);
+    } finally {
+      setFolderPickerLoading(false);
+    }
+  }
+
   function updateQuestion(clientId, field, value) {
     setQuestions((current) =>
       current.map((question) =>
@@ -281,6 +298,16 @@ export default function App() {
   async function handleRunQuestions() {
     setQuestionError("");
     setQuestionCancelRequested(false);
+
+    const numberQuestionMissingUnit = questions.find(
+      (question) => question.answerType === "number" && !question.unit.trim()
+    );
+    if (numberQuestionMissingUnit) {
+      const questionLabel = numberQuestionMissingUnit.questionName.trim() || "a number question";
+      setQuestionError(`Please enter a unit for ${questionLabel} before running questions.`);
+      return;
+    }
+
     const docIds = getActiveProcessedDocIds();
     if (docIds.length === 0) {
       setQuestionError("Process documents before running questions.");
@@ -361,7 +388,9 @@ export default function App() {
           form={processForm}
           onChange={updateProcessField}
           onSubmit={handleProcessDocuments}
+          onChooseFolder={handleChooseFolder}
           loading={processLoading}
+          folderPickerLoading={folderPickerLoading}
           progress={processProgress}
           summary={processResult?.summary}
           records={processResult?.records}

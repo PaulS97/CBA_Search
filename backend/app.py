@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .schemas import ProcessDocumentsRequest, RunQuestionsRequest
 from .services import (
+    choose_folder_service,
     get_latest_results,
     get_process_progress,
     get_qa_progress,
@@ -54,6 +55,14 @@ async def run_questions(request: RunQuestionsRequest) -> dict:
 @app.post("/run-questions/cancel")
 def cancel_run_questions() -> dict:
     return request_qa_cancel()
+
+
+@app.post("/choose-folder")
+async def choose_folder() -> dict:
+    try:
+        return choose_folder_service()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.get("/latest-results")

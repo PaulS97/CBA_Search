@@ -9,16 +9,19 @@ function formatTrueFalseAnswer(cell) {
 
   if (typeof cell.answer === "string") {
     const normalizedAnswer = cell.answer.trim().toLowerCase();
-    if (normalizedAnswer === "true" || normalizedAnswer === "false") {
-      return normalizedAnswer;
+    if (normalizedAnswer === "true" || normalizedAnswer === "yes") {
+      return "yes";
+    }
+    if (normalizedAnswer === "false" || normalizedAnswer === "no") {
+      return "no";
     }
   }
 
   if (cell.value === 1) {
-    return "true";
+    return "yes";
   }
   if (cell.value === 0) {
-    return "false";
+    return "no";
   }
 
   return cell.answer || "";

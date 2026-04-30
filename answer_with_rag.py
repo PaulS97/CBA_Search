@@ -356,10 +356,10 @@ def build_prompts(
 
     elif answer_type in {"boolean", "true_false"}:
         system_prompt += (
-            "\nThis question expects a true/false answer.\n"
-            'Set answer to "true" or "false".\n'
-            "Set value to 1 for true and 0 for false.\n"
-            "Set unit to null for boolean answers.\n"
+            "\nThis question expects a yes/no answer.\n"
+            'Set answer to "yes" or "no".\n'
+            "Set value to 1 for yes and 0 for no.\n"
+            "Set unit to null for yes/no answers.\n"
         )
 
     elif answer_type in {"string_short", "short_answer"}:

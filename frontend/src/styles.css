@@ -183,6 +183,22 @@ p {
   resize: vertical;
 }
 
+.pathPickerRow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.pathPickerRow input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pathPickerButton {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .checkGrid {
   display: grid;
   gap: 14px;
@@ -382,6 +398,11 @@ p {
   border-color: rgba(173, 93, 18, 0.15);
 }
 
+.resultsFilterSummary {
+  margin-top: 18px;
+  color: var(--muted);
+}
+
 .statusList {
   display: grid;
   gap: 10px;
@@ -572,15 +593,6 @@ p {
   word-break: break-word;
 }
 
-.stickyColTwo {
-  left: 220px;
-  width: 360px;
-  min-width: 360px;
-  box-shadow:
-    inset -1px 0 0 rgba(20, 57, 77, 0.08),
-    10px 0 18px -18px rgba(19, 46, 60, 0.38);
-}
-
 .stickyCell {
   background: white;
 }
@@ -635,6 +647,105 @@ p {
   white-space: normal;
 }
 
+.answerHeaderStack {
+  display: grid;
+  gap: 10px;
+}
+
+.answerFilterDisclosure {
+  display: grid;
+  gap: 10px;
+}
+
+.answerFilterDisclosure summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.answerFilterDisclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.answerFilterSummaryLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(15, 107, 168, 0.08);
+  color: var(--accent-strong);
+  font-size: 0.79rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.answerFilterPanel {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(20, 57, 77, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.answerFilterField {
+  display: grid;
+  gap: 8px;
+}
+
+.answerFilterField span {
+  color: #29414d;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.answerFilterField input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(20, 57, 77, 0.16);
+  border-radius: 12px;
+  background: white;
+  color: var(--ink);
+}
+
+.answerFilterOptions {
+  display: grid;
+  gap: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.answerFilterOption {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  color: #334750;
+  font-weight: 600;
+}
+
+.answerFilterOption span {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.answerFilterEmpty {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.answerFilterClear {
+  justify-self: start;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: rgba(20, 57, 77, 0.08);
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .answerCell {
   display: grid;
   gap: 6px;
@@ -663,16 +774,6 @@ p {
 .quoteCell {
   width: 320px;
   min-width: 320px;
-  white-space: normal;
-}
-
-.clampedText {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  line-height: 1.45;
-  color: #334750;
   white-space: normal;
 }
 
@@ -746,6 +847,13 @@ p {
   white-space: normal;
 }
 
+.emptyFilterCell {
+  padding: 20px 16px;
+  color: var(--muted);
+  text-align: center;
+  white-space: normal;
+}
+
 .emptyState {
   display: grid;
   gap: 10px;
@@ -774,8 +882,12 @@ p {
     grid-template-columns: 1fr;
   }
 
-  .stickyColOne,
-  .stickyColTwo {
+  .pathPickerRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .stickyColOne {
     position: static;
     width: auto;
     min-width: 0;

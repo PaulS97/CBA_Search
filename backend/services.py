@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import subprocess
+import sys
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -93,6 +95,66 @@ def slugify_question_id(value: str) -> str:
 def utc_now_iso() -> str:
     """Return a compact UTC timestamp for in-memory status payloads."""
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def choose_folder_service() -> dict:
+    """
+    Open a native folder picker and return the selected absolute path.
+
+    This is backend-driven because a browser-based frontend cannot reliably
+    access the local filesystem path string needed by the ingest pipeline.
+    """
+    selected_path = choose_folder_path()
+    return {
+        "path": selected_path,
+        "cancelled": not bool(selected_path),
+    }
+
+
+def choose_folder_path() -> str | None:
+    """Return a selected folder path, or None when the user cancels."""
+    if sys.platform == "darwin":
+        return choose_folder_path_macos()
+    return choose_folder_path_tk()
+
+
+def choose_folder_path_macos() -> str | None:
+    """Use the native macOS folder picker via AppleScript."""
+    script = 'POSIX path of (choose folder with prompt "Choose a folder to process")'
+    completed = subprocess.run(
+        ["osascript", "-e", script],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if completed.returncode != 0:
+        stderr = completed.stderr.strip()
+        if completed.returncode == 1 and ("User canceled" in stderr or "-128" in stderr):
+            return None
+        raise RuntimeError(stderr or "Folder selection failed.")
+
+    selected_path = completed.stdout.strip()
+    return selected_path or None
+
+
+def choose_folder_path_tk() -> str | None:
+    """Fallback cross-platform picker using tkinter when available."""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except Exception as exc:
+        raise RuntimeError("A native folder picker is not available in this environment.") from exc
+
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        selected_path = filedialog.askdirectory(mustexist=True, title="Choose a folder to process")
+    finally:
+        root.destroy()
+
+    return selected_path or None
 
 
 def update_process_progress(payload: dict) -> None:

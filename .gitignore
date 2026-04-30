@@ -12,6 +12,7 @@ dist/
 
 # Your project-specific
 Industry Data Project/
+*.csv
 outputs/
 _rag_cache/
 .env

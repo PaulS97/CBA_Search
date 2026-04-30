@@ -749,22 +749,6 @@ def print_summary(records: list[dict]) -> None:
         print(f"  {key}: {value}")
 
 
-def write_ingest_run_log(root: Path, args: argparse.Namespace, records: list[dict]) -> Path:
-    """Persist the per-document ingest results for later inspection."""
-    INGEST_RUNS_DIR.mkdir(parents=True, exist_ok=True)
-    log_path = INGEST_RUNS_DIR / f"{utc_timestamp_slug()}.json"
-    payload = {
-        "root": str(root),
-        "name_contains": args.name_contains,
-        "force": args.force,
-        "dry_run": args.dry_run,
-        "verbose": args.verbose,
-        "records": records,
-    }
-    write_json(log_path, payload)
-    return log_path
-
-
 def failure_record(pdf_path: Path, doc_id: str | None, error: str) -> dict:
     """Create a per-document record when classification or processing fails early."""
     return {

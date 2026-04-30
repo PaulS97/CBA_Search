@@ -1,6 +1,6 @@
 const ANSWER_TYPES = [
   { value: "number", label: "Number" },
-  { value: "true_false", label: "True / False" },
+  { value: "true_false", label: "Yes / No" },
   { value: "date", label: "Date" },
   { value: "short_answer", label: "Short Answer" }
 ];

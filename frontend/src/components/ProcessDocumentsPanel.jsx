@@ -27,7 +27,9 @@ export default function ProcessDocumentsPanel({
   form,
   onChange,
   onSubmit,
+  onChooseFolder,
   loading,
+  folderPickerLoading,
   progress,
   summary,
   records,
@@ -55,12 +57,22 @@ export default function ProcessDocumentsPanel({
       <div className="formGrid">
         <label className="field fieldWide">
           <span>Root Folder Path</span>
-          <input
-            type="text"
-            value={form.root}
-            onChange={(event) => onChange("root", event.target.value)}
-            placeholder="/Users/paulseham/Documents/CBA_Search/Industry Data Project/Air Canada"
-          />
+          <div className="pathPickerRow">
+            <input
+              type="text"
+              value={form.root}
+              onChange={(event) => onChange("root", event.target.value)}
+              placeholder="/Users/paulseham/Documents/CBA_Search/Industry Data Project/Air Canada"
+            />
+            <button
+              className="secondaryButton pathPickerButton"
+              type="button"
+              onClick={onChooseFolder}
+              disabled={folderPickerLoading || loading}
+            >
+              {folderPickerLoading ? "Choosing..." : "Choose Folder"}
+            </button>
+          </div>
         </label>
 
         <label className="field">

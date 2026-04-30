@@ -11,7 +11,7 @@ RankingDirection = Literal["ascending", "descending"]
 
 class ProcessDocumentsRequest(BaseModel):
     root: str
-    name_contains: str = "cba or (collective and agreement)"
+    name_contains: str = "cba or (collective and agreement) or contract"
     force: bool = False
     dry_run: bool = False
 
