@@ -12,6 +12,8 @@ import re
 import sys
 from pathlib import Path
 
+from runtime_paths import CACHE_ROOT
+
 try:
     import fitz
 except ImportError:
@@ -21,8 +23,6 @@ except ImportError:
 DEFAULT_PDF_PATH = Path(
     "/Users/paulseham/Documents/CBA_Search/Industry Data Project/Air Canada/ACPA CBA 2020-2023.pdf"
 )
-PROJECT_ROOT = Path(__file__).resolve().parent
-CACHE_ROOT = PROJECT_ROOT / "_rag_cache"
 LOW_TEXT_THRESHOLD = 50
 SEARCH_PHRASE = "sick leave"
 MAX_SEARCH_HITS = 10

@@ -10,9 +10,12 @@ import argparse
 import json
 import os
 import sys
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
+
+from runtime_paths import CACHE_ROOT, CHROMA_DB_PATH, load_local_dotenv
 
 try:
     import chromadb
@@ -41,14 +44,44 @@ except ImportError as exc:
 else:
     BUILD_DOC_ID_IMPORT_ERROR = None
 
-
-PROJECT_ROOT = Path(__file__).resolve().parent
-CACHE_ROOT = PROJECT_ROOT / "_rag_cache"
-CHROMA_DB_PATH = CACHE_ROOT / "chroma_db"
 COLLECTION_NAME = "cba_chunks"
 DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
 DEFAULT_BATCH_SIZE = 50
 SANITY_QUERY_TEXT = "How many sick leave days with pay are pilots entitled to?"
+
+
+def debug_index_event(
+    stage: str,
+    message: str,
+    *,
+    doc_id: str | None = None,
+    extra: dict | None = None,
+    event: str = "INFO",
+) -> None:
+    """Print one grep-friendly indexing debug line with immediate flushing."""
+    doc_label = doc_id or "unknown-doc-id"
+    print(f"[CBA_DEBUG][{stage}][{event}] doc_id={doc_label!r} {message}", flush=True)
+    if extra:
+        for key, value in extra.items():
+            print(f"[CBA_DEBUG][{stage}][DATA] {key}={value!r}", flush=True)
+
+
+def debug_index_exception(stage: str, doc_id: str | None, exc: BaseException) -> None:
+    """Print the full traceback for one caught indexing exception."""
+    debug_index_event(
+        stage,
+        "caught exception",
+        doc_id=doc_id,
+        event="EXCEPTION",
+        extra={
+            "exception": repr(exc),
+            "cache_root": str(CACHE_ROOT),
+            "chroma_db_path": str(CHROMA_DB_PATH),
+        },
+    )
+    print("[CBA_DEBUG][TRACEBACK][BEGIN]", flush=True)
+    print(traceback.format_exc().rstrip(), flush=True)
+    print("[CBA_DEBUG][TRACEBACK][END]", flush=True)
 
 
 def parse_args() -> argparse.Namespace:
@@ -209,7 +242,7 @@ def load_indexing_config() -> tuple[str, str]:
     Read `.env` and the current process environment, then return the API key and
     embedding model name used for this indexing run.
     """
-    load_dotenv(PROJECT_ROOT / ".env")
+    load_local_dotenv(load_dotenv)
 
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
@@ -371,56 +404,123 @@ def index_document(doc_id: str, force: bool = False, run_sanity_query_after: boo
     Index one chunked document into the persistent Chroma collection and return a
     summary of what happened.
     """
-    cache_dir = CACHE_ROOT / doc_id
-    chunks_path = cache_dir / "chunks.jsonl"
-    indexed_ok_path = cache_dir / "indexed.ok"
-    index_manifest_path = cache_dir / "index_manifest.json"
-
-    if not chunks_path.exists():
-        raise RuntimeError(f"Missing chunk file: {chunks_path}. Run chunk_pages.py first.")
-
-    records, chunks_seen, skipped_empty = load_chunk_records(chunks_path, doc_id)
-    if not records:
-        raise RuntimeError(f"No usable chunk text found in {chunks_path}.")
-
-    skipped_due_to_indexed_ok = should_skip_indexing(chunks_path, indexed_ok_path, force)
-    result = {
-        "doc_id": doc_id,
-        "collection_name": COLLECTION_NAME,
-        "chunks_seen": chunks_seen,
-        "chunks_indexed": 0,
-        "skipped_empty": skipped_empty,
-        "db_path": str(CHROMA_DB_PATH),
-        "skipped_due_to_indexed_ok": skipped_due_to_indexed_ok,
-    }
-
-    if skipped_due_to_indexed_ok:
-        return result
-
-    ensure_indexing_dependencies()
-    api_key, embedding_model = load_indexing_config()
-    openai_client = OpenAI(api_key=api_key)
-    CHROMA_DB_PATH.mkdir(parents=True, exist_ok=True)
-    collection = get_collection(CHROMA_DB_PATH)
-
-    chunks_indexed = upsert_records(collection, openai_client, embedding_model, records)
-    manifest = build_index_manifest(doc_id, embedding_model, chunks_indexed)
-    write_json(index_manifest_path, manifest)
-    write_index_marker(indexed_ok_path, manifest)
-
-    result.update(
-        {
-            "chunks_indexed": chunks_indexed,
-            "embedding_model": embedding_model,
-            "index_manifest": manifest,
-            "skipped_due_to_indexed_ok": False,
-        }
+    debug_index_event(
+        "index_document",
+        "enter index_document",
+        doc_id=doc_id,
+        event="ENTER",
+        extra={
+            "cache_root": str(CACHE_ROOT),
+            "chroma_db_path": str(CHROMA_DB_PATH),
+            "force": force,
+            "run_sanity_query_after": run_sanity_query_after,
+        },
     )
+    try:
+        cache_dir = CACHE_ROOT / doc_id
+        chunks_path = cache_dir / "chunks.jsonl"
+        indexed_ok_path = cache_dir / "indexed.ok"
+        index_manifest_path = cache_dir / "index_manifest.json"
 
-    if run_sanity_query_after:
-        run_sanity_query(collection, openai_client, embedding_model, doc_id)
+        debug_index_event(
+            "index_document",
+            "resolved index paths",
+            doc_id=doc_id,
+            extra={
+                "cache_dir": str(cache_dir),
+                "chunks_path": str(chunks_path),
+                "indexed_ok_path": str(indexed_ok_path),
+                "index_manifest_path": str(index_manifest_path),
+            },
+        )
 
-    return result
+        if not chunks_path.exists():
+            raise RuntimeError(f"Missing chunk file: {chunks_path}. Run chunk_pages.py first.")
+
+        debug_index_event("load_chunk_records", "enter load_chunk_records", doc_id=doc_id, event="ENTER")
+        records, chunks_seen, skipped_empty = load_chunk_records(chunks_path, doc_id)
+        debug_index_event(
+            "load_chunk_records",
+            "exit load_chunk_records",
+            doc_id=doc_id,
+            event="EXIT",
+            extra={
+                "chunks_seen": chunks_seen,
+                "usable_records": len(records),
+                "skipped_empty": skipped_empty,
+            },
+        )
+        if not records:
+            raise RuntimeError(f"No usable chunk text found in {chunks_path}.")
+
+        skipped_due_to_indexed_ok = should_skip_indexing(chunks_path, indexed_ok_path, force)
+        result = {
+            "doc_id": doc_id,
+            "collection_name": COLLECTION_NAME,
+            "chunks_seen": chunks_seen,
+            "chunks_indexed": 0,
+            "skipped_empty": skipped_empty,
+            "db_path": str(CHROMA_DB_PATH),
+            "skipped_due_to_indexed_ok": skipped_due_to_indexed_ok,
+        }
+
+        if skipped_due_to_indexed_ok:
+            debug_index_event("index_document", "skipping due to indexed.ok", doc_id=doc_id, event="EXIT")
+            return result
+
+        debug_index_event("ensure_indexing_dependencies", "enter ensure_indexing_dependencies", doc_id=doc_id, event="ENTER")
+        ensure_indexing_dependencies()
+        debug_index_event("ensure_indexing_dependencies", "exit ensure_indexing_dependencies", doc_id=doc_id, event="EXIT")
+
+        debug_index_event("load_indexing_config", "enter load_indexing_config", doc_id=doc_id, event="ENTER")
+        api_key, embedding_model = load_indexing_config()
+        debug_index_event(
+            "load_indexing_config",
+            "exit load_indexing_config",
+            doc_id=doc_id,
+            event="EXIT",
+            extra={"embedding_model": embedding_model, "api_key_present": bool(api_key)},
+        )
+
+        openai_client = OpenAI(api_key=api_key)
+        CHROMA_DB_PATH.mkdir(parents=True, exist_ok=True)
+        debug_index_event("get_collection", "enter get_collection", doc_id=doc_id, event="ENTER")
+        collection = get_collection(CHROMA_DB_PATH)
+        debug_index_event("get_collection", "exit get_collection", doc_id=doc_id, event="EXIT")
+
+        debug_index_event("upsert_records", "enter upsert_records", doc_id=doc_id, event="ENTER")
+        chunks_indexed = upsert_records(collection, openai_client, embedding_model, records)
+        debug_index_event(
+            "upsert_records",
+            "exit upsert_records",
+            doc_id=doc_id,
+            event="EXIT",
+            extra={"chunks_indexed": chunks_indexed},
+        )
+
+        manifest = build_index_manifest(doc_id, embedding_model, chunks_indexed)
+        write_json(index_manifest_path, manifest)
+        write_index_marker(indexed_ok_path, manifest)
+
+        result.update(
+            {
+                "chunks_indexed": chunks_indexed,
+                "embedding_model": embedding_model,
+                "index_manifest": manifest,
+                "skipped_due_to_indexed_ok": False,
+            }
+        )
+
+        if run_sanity_query_after:
+            debug_index_event("run_sanity_query", "enter run_sanity_query", doc_id=doc_id, event="ENTER")
+            run_sanity_query(collection, openai_client, embedding_model, doc_id)
+            debug_index_event("run_sanity_query", "exit run_sanity_query", doc_id=doc_id, event="EXIT")
+
+        debug_index_event("index_document", "exit index_document", doc_id=doc_id, event="EXIT")
+        return result
+    except Exception as exc:
+        debug_index_exception("index_document", doc_id, exc)
+        raise
 
 
 def main() -> int:

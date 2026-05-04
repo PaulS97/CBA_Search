@@ -374,6 +374,7 @@ def build_process_response(result: dict) -> dict:
         "summary": result["summary"],
         "records": result["records"],
         "log_path": result.get("log_path"),
+        "runtime_diagnostics": result.get("runtime_diagnostics"),
         "root": result["root"],
         "name_contains": result["name_contains"],
         "force": result["force"],

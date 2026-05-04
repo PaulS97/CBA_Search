@@ -3,6 +3,10 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from runtime_paths import FRONTEND_DIST
 
 from .schemas import ProcessDocumentsRequest, RunQuestionsRequest
 from .services import (
@@ -14,6 +18,18 @@ from .services import (
     request_qa_cancel,
     run_questions_service,
 )
+
+
+class SPAStaticFiles(StaticFiles):
+    """Serve the built frontend and fall back to index.html for client routes."""
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            return await super().get_response("index.html", scope)
 
 
 app = FastAPI(
@@ -78,3 +94,7 @@ def process_progress() -> dict:
 @app.get("/qa-progress")
 def qa_progress() -> dict:
     return get_qa_progress()
+
+
+if FRONTEND_DIST.exists():
+    app.mount("/", SPAStaticFiles(directory=str(FRONTEND_DIST), html=True), name="frontend")

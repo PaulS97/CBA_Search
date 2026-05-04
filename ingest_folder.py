@@ -9,9 +9,19 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
+
+from runtime_paths import (
+    CACHE_ROOT,
+    CHROMA_DB_PATH,
+    INGEST_RUNS_DIR,
+    OUTPUTS_DIR,
+    print_runtime_diagnostics,
+    runtime_diagnostics,
+)
 
 try:
     from extract_pages import build_doc_id, extract_pdf
@@ -38,10 +48,6 @@ except ImportError as exc:
 else:
     INDEX_IMPORT_ERROR = None
 
-
-PROJECT_ROOT = Path(__file__).resolve().parent
-CACHE_ROOT = PROJECT_ROOT / "_rag_cache"
-INGEST_RUNS_DIR = CACHE_ROOT / "ingest_runs"
 SOURCE_MTIME_TOLERANCE = 1e-6
 
 STATUS_NEW = "NEW"
@@ -60,6 +66,58 @@ ACTION_FORCED_REPROCESS = "FORCED_REPROCESS"
 ACTION_DRY_RUN = "DRY_RUN"
 QUERY_OPERATORS = {"AND", "OR", "NOT"}
 DEFAULT_NAME_QUERY = "cba or (collective and agreement)"
+
+
+def debug_document_event(
+    pdf_path: Path,
+    doc_id: str | None,
+    stage: str,
+    message: str,
+    *,
+    event: str = "INFO",
+    error: str | None = None,
+    extra: dict | None = None,
+) -> None:
+    """Print one grep-friendly per-document debug line with immediate flushing."""
+    doc_label = doc_id or "unknown-doc-id"
+    print(
+        f"[CBA_DEBUG][{stage}][{event}] file={pdf_path.name!r} doc_id={doc_label!r} {message}",
+        flush=True,
+    )
+    print(f"[CBA_DEBUG][{stage}][PATH] pdf_path={str(pdf_path)!r}", flush=True)
+    if error:
+        print(f"[CBA_DEBUG][{stage}][ERROR] {error!r}", flush=True)
+    if extra:
+        for key, value in extra.items():
+            print(f"[CBA_DEBUG][{stage}][DATA] {key}={value!r}", flush=True)
+
+
+def debug_exception(
+    stage: str,
+    pdf_path: Path,
+    doc_id: str | None,
+    exc: BaseException,
+    *,
+    current_stage: str | None = None,
+) -> None:
+    """Print the full traceback for one caught ingest exception."""
+    debug_document_event(
+        pdf_path,
+        doc_id,
+        stage,
+        "caught exception",
+        event="EXCEPTION",
+        error=repr(exc),
+        extra={
+            "current_stage": current_stage,
+            "cache_root": str(CACHE_ROOT),
+            "chroma_db_path": str(CHROMA_DB_PATH),
+            "outputs_dir": str(OUTPUTS_DIR),
+        },
+    )
+    print("[CBA_DEBUG][TRACEBACK][BEGIN]", flush=True)
+    print(traceback.format_exc().rstrip(), flush=True)
+    print("[CBA_DEBUG][TRACEBACK][END]", flush=True)
 
 
 def parse_args() -> argparse.Namespace:
@@ -487,6 +545,7 @@ def make_record(pdf_path: Path, doc_id: str, status: str, error: str | None = No
         "error": error,
         "cache_dir": str(CACHE_ROOT / doc_id),
         "matched_filter": True,
+        "current_stage": "classified",
     }
 
 
@@ -495,6 +554,14 @@ def classify_document(pdf_path: Path, doc_id: str) -> dict:
     Inspect the cache directory for one candidate PDF and classify it into one of
     the requested pipeline states.
     """
+    debug_document_event(
+        pdf_path,
+        doc_id,
+        "classify_document",
+        "enter classify_document",
+        event="ENTER",
+        extra={"cache_root": str(CACHE_ROOT)},
+    )
     cache_dir = CACHE_ROOT / doc_id
     record = make_record(pdf_path, doc_id, STATUS_NEW)
 
@@ -518,6 +585,7 @@ def classify_document(pdf_path: Path, doc_id: str) -> dict:
     try:
         source_payload = load_source_json(source_path)
     except RuntimeError as exc:
+        debug_exception("classify_document", pdf_path, doc_id, exc, current_stage="load_source_json")
         record["status"] = STATUS_BROKEN_CACHE
         record["classified_status"] = STATUS_BROKEN_CACHE
         record["action"] = ACTION_PROCESS_FULL
@@ -537,6 +605,7 @@ def classify_document(pdf_path: Path, doc_id: str) -> dict:
     try:
         validate_source_payload(source_payload, doc_id)
     except RuntimeError as exc:
+        debug_exception("classify_document", pdf_path, doc_id, exc, current_stage="validate_source_payload")
         record["status"] = STATUS_BROKEN_CACHE
         record["classified_status"] = STATUS_BROKEN_CACHE
         record["action"] = ACTION_PROCESS_FULL
@@ -587,6 +656,7 @@ def classify_document(pdf_path: Path, doc_id: str) -> dict:
         pages_count = validate_jsonl(pages_path, {"page", "text"}, "pages.jsonl")
         record["pages_records"] = pages_count
     except RuntimeError as exc:
+        debug_exception("classify_document", pdf_path, doc_id, exc, current_stage="validate_pages_jsonl")
         record["status"] = STATUS_BROKEN_CACHE
         record["classified_status"] = STATUS_BROKEN_CACHE
         record["action"] = ACTION_PROCESS_FULL
@@ -619,6 +689,7 @@ def classify_document(pdf_path: Path, doc_id: str) -> dict:
         )
         record["chunk_records"] = chunk_count
     except RuntimeError as exc:
+        debug_exception("classify_document", pdf_path, doc_id, exc, current_stage="validate_chunks_jsonl")
         record["status"] = STATUS_BROKEN_CACHE
         record["classified_status"] = STATUS_BROKEN_CACHE
         record["action"] = ACTION_PROCESS_FULL
@@ -650,38 +721,115 @@ def process_document(record: dict, force: bool, dry_run: bool) -> dict:
     """
     record["planned_action"] = planned_action_for_status(record["classified_status"])
     record["action"] = select_action(record["classified_status"], force=force, dry_run=dry_run)
-
-    if record["action"] in {ACTION_SKIP, ACTION_DRY_RUN}:
-        return record
-
     pdf_path = Path(record["pdf_path"])
     doc_id = record["doc_id"]
 
+    debug_document_event(
+        pdf_path,
+        doc_id,
+        "process_document",
+        "enter process_document",
+        event="ENTER",
+        extra={
+            "classified_status": record["classified_status"],
+            "planned_action": record["planned_action"],
+            "selected_action": record["action"],
+        },
+    )
+
+    if record["action"] in {ACTION_SKIP, ACTION_DRY_RUN}:
+        record["current_stage"] = "skipped"
+        return record
+
     try:
         if record["action"] in {ACTION_PROCESS_FULL, ACTION_FORCED_REPROCESS}:
+            record["current_stage"] = "extract_pages"
+            debug_document_event(pdf_path, doc_id, "extract_pdf", "enter extract_pdf", event="ENTER")
             extract_pdf(pdf_path)
+            debug_document_event(pdf_path, doc_id, "extract_pdf", "exit extract_pdf", event="EXIT")
+            record["current_stage"] = "chunk_pages"
+            debug_document_event(pdf_path, doc_id, "chunk_document", "enter chunk_document", event="ENTER")
             chunk_document(doc_id)
+            debug_document_event(pdf_path, doc_id, "chunk_document", "exit chunk_document", event="EXIT")
+            record["current_stage"] = "index_chroma"
+            debug_document_event(
+                pdf_path,
+                doc_id,
+                "index_document",
+                "enter index_document",
+                event="ENTER",
+                extra={
+                    "cache_root": str(CACHE_ROOT),
+                    "chroma_db_path": str(CHROMA_DB_PATH),
+                    "outputs_dir": str(OUTPUTS_DIR),
+                    "pdf_path": str(pdf_path),
+                },
+            )
             index_result = index_document(doc_id, force=True, run_sanity_query_after=False)
+            debug_document_event(pdf_path, doc_id, "index_document", "exit index_document", event="EXIT")
             record["completed_steps"] = ["extract_pages", "chunk_pages", "index_chroma"]
             record["index_result"] = index_result
+            record["current_stage"] = "completed"
             return record
 
         if record["action"] == ACTION_PROCESS_CHUNK_AND_INDEX:
+            record["current_stage"] = "chunk_pages"
+            debug_document_event(pdf_path, doc_id, "chunk_document", "enter chunk_document", event="ENTER")
             chunk_document(doc_id)
+            debug_document_event(pdf_path, doc_id, "chunk_document", "exit chunk_document", event="EXIT")
+            record["current_stage"] = "index_chroma"
+            debug_document_event(
+                pdf_path,
+                doc_id,
+                "index_document",
+                "enter index_document",
+                event="ENTER",
+                extra={
+                    "cache_root": str(CACHE_ROOT),
+                    "chroma_db_path": str(CHROMA_DB_PATH),
+                    "outputs_dir": str(OUTPUTS_DIR),
+                    "pdf_path": str(pdf_path),
+                },
+            )
             index_result = index_document(doc_id, force=False, run_sanity_query_after=False)
+            debug_document_event(pdf_path, doc_id, "index_document", "exit index_document", event="EXIT")
             record["completed_steps"] = ["chunk_pages", "index_chroma"]
             record["index_result"] = index_result
+            record["current_stage"] = "completed"
             return record
 
         if record["action"] == ACTION_PROCESS_INDEX_ONLY:
+            record["current_stage"] = "index_chroma"
+            debug_document_event(
+                pdf_path,
+                doc_id,
+                "index_document",
+                "enter index_document",
+                event="ENTER",
+                extra={
+                    "cache_root": str(CACHE_ROOT),
+                    "chroma_db_path": str(CHROMA_DB_PATH),
+                    "outputs_dir": str(OUTPUTS_DIR),
+                    "pdf_path": str(pdf_path),
+                },
+            )
             index_result = index_document(doc_id, force=False, run_sanity_query_after=False)
+            debug_document_event(pdf_path, doc_id, "index_document", "exit index_document", event="EXIT")
             record["completed_steps"] = ["index_chroma"]
             record["index_result"] = index_result
+            record["current_stage"] = "completed"
             return record
 
         return record
     except Exception as exc:
         record["status"] = STATUS_FAILED
+        debug_exception(
+            "process_document",
+            pdf_path,
+            doc_id,
+            exc,
+            current_stage=record.get("current_stage", "unknown"),
+        )
         record["error"] = str(exc)
         return record
 
@@ -690,7 +838,8 @@ def print_document_status(record: dict, verbose: bool) -> None:
     """Print one concise line per document, with optional classification detail."""
     path_text = record["pdf_path"]
     if record["status"] == STATUS_FAILED:
-        print(f"[FAILED] {path_text} -> {record['error']}")
+        stage = record.get("current_stage") or "unknown"
+        print(f"[FAILED] {path_text} [{stage}] -> {record['error']}")
     else:
         print(f"[{record['status']}] {record['action']} {path_text}")
 
@@ -708,6 +857,8 @@ def print_document_status(record: dict, verbose: bool) -> None:
         print(f"  planned_action: {record['planned_action']}")
     if record.get("completed_steps"):
         print(f"  completed_steps: {', '.join(record['completed_steps'])}")
+    if record.get("current_stage"):
+        print(f"  current_stage: {record['current_stage']}")
     if record.get("error") and record["status"] != STATUS_FAILED:
         print(f"  detail: {record['error']}")
 
@@ -762,6 +913,7 @@ def failure_record(pdf_path: Path, doc_id: str | None, error: str) -> dict:
         "error": error,
         "cache_dir": str(CACHE_ROOT / doc_id) if doc_id else "",
         "matched_filter": True,
+        "current_stage": "failed_before_processing",
     }
 
 
@@ -785,9 +937,24 @@ def run_ingest(
     the aggregate summary for reuse by the API layer.
     """
     ensure_pipeline_functions()
+    print("test 0", flush=True)
+    print("[CBA_DEBUG][services] run_ingest function file:", run_ingest.__code__.co_filename, flush=True)
+    print_runtime_diagnostics("run_ingest")
+    print("test 1", flush=True)
+    print(f"[CBA_DEBUG][run_ingest][BEFORE_RESOLVE] root={root!r} type={type(root)}", flush=True)
     resolved_root = Path(root).expanduser().resolve()
+    print("test 2", flush=True)
+    print(
+        f"[CBA_DEBUG][discover_candidates][ENTER] root={str(resolved_root)!r} query={name_contains!r} "
+        f"cache_root={str(CACHE_ROOT)!r} chroma_db_path={str(CHROMA_DB_PATH)!r} outputs_dir={str(OUTPUTS_DIR)!r}",
+        flush=True,
+    )
     candidates = discover_candidate_pdfs(resolved_root, name_contains)
     total_documents = len(candidates)
+    print(
+        f"[CBA_DEBUG][discover_candidates][EXIT] total_documents={total_documents!r}",
+        flush=True,
+    )
 
     emit_progress(
         progress_callback,
@@ -807,8 +974,14 @@ def run_ingest(
     )
 
     records: list[dict] = []
-    for pdf_path in candidates:
+    for document_index, pdf_path in enumerate(candidates, start=1):
         doc_id: str | None = None
+        debug_document_event(
+            pdf_path,
+            None,
+            "candidate",
+            f"processing document {document_index} of {total_documents}",
+        )
         emit_progress(
             progress_callback,
             {
@@ -826,10 +999,21 @@ def run_ingest(
             },
         )
         try:
+            debug_document_event(pdf_path, None, "compute_doc_id", "building document id", event="ENTER")
             doc_id = compute_doc_id(pdf_path)
+            debug_document_event(pdf_path, doc_id, "compute_doc_id", "document id computed", event="EXIT")
+            debug_document_event(pdf_path, doc_id, "classify_document", "about to classify document", event="ENTER")
             record = classify_document(pdf_path, doc_id)
+            debug_document_event(
+                pdf_path,
+                doc_id,
+                "classify_document",
+                f"classified as {record['classified_status']} with action {record['action']}",
+                event="EXIT",
+            )
             record = process_document(record, force=force, dry_run=dry_run)
         except Exception as exc:
+            debug_exception("run_ingest", pdf_path, doc_id, exc, current_stage="outer_failure")
             record = failure_record(pdf_path, doc_id, str(exc))
 
         records.append(record)
@@ -860,6 +1044,7 @@ def run_ingest(
         "records": records,
         "summary": build_summary(records),
         "log_path": None,
+        "runtime_diagnostics": runtime_diagnostics(),
     }
 
     if write_log:

@@ -12,6 +12,8 @@ import os
 import sys
 from pathlib import Path
 
+from runtime_paths import CACHE_ROOT, CHROMA_DB_PATH, OUTPUTS_DIR, load_local_dotenv
+
 try:
     import chromadb
 except ImportError:
@@ -39,11 +41,6 @@ except ImportError as exc:
 else:
     BUILD_DOC_ID_IMPORT_ERROR = None
 
-
-PROJECT_ROOT = Path(__file__).resolve().parent
-CACHE_ROOT = PROJECT_ROOT / "_rag_cache"
-CHROMA_DB_PATH = CACHE_ROOT / "chroma_db"
-OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 COLLECTION_NAME = "cba_chunks"
 DEFAULT_QUESTION = "How many sick leave days with pay are pilots entitled to?"
 DEFAULT_CHAT_MODEL = "gpt-4.1-mini"
@@ -130,8 +127,7 @@ def load_config() -> tuple[str, str, str]:
     Load environment configuration from `.env` when available, while still working
     if the key is already present in the process environment.
     """
-    if load_dotenv is not None:
-        load_dotenv(PROJECT_ROOT / ".env")
+    load_local_dotenv(load_dotenv)
 
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:

@@ -11,6 +11,8 @@ import re
 import sys
 from pathlib import Path
 
+from runtime_paths import CACHE_ROOT
+
 try:
     from extract_pages import build_doc_id
 except ImportError as exc:
@@ -20,8 +22,6 @@ else:
     BUILD_DOC_ID_IMPORT_ERROR = None
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-CACHE_ROOT = PROJECT_ROOT / "_rag_cache"
 CHUNK_WORDS_TARGET = 300
 CHUNK_WORDS_OVERLAP = 60
 PREVIEW_CHARS = 120

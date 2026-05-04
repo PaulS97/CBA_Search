@@ -12,6 +12,10 @@ import sys
 from pathlib import Path
 from typing import Callable
 
+from runtime_paths import CACHE_ROOT as RUNTIME_CACHE_ROOT
+from runtime_paths import OUTPUTS_DIR as RUNTIME_OUTPUTS_DIR
+from runtime_paths import print_runtime_diagnostics
+
 try:
     from answer_folder import (
         CACHE_ROOT,
@@ -20,8 +24,8 @@ try:
         matches_source_filter,
     )
 except ImportError as exc:
-    CACHE_ROOT = Path(__file__).resolve().parent / "_rag_cache"
-    OUTPUTS_DIR = Path(__file__).resolve().parent / "outputs"
+    CACHE_ROOT = RUNTIME_CACHE_ROOT
+    OUTPUTS_DIR = RUNTIME_OUTPUTS_DIR
     discover_indexed_docs = None
     matches_source_filter = None
     DISCOVERY_IMPORT_ERROR = exc
@@ -395,6 +399,7 @@ def run_question_set(
     pipeline and return both long-format and wide-format results.
     """
     ensure_reusable_pipeline()
+    print_runtime_diagnostics("run_question_set")
 
     validated_questions = validate_questions(questions, questions_file or Path("<in-memory-questions>"))
     if limit_questions is not None:
