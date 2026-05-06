@@ -27,6 +27,17 @@ export function fetchLatestResults() {
   return request("/latest-results");
 }
 
+export function fetchSettings() {
+  return request("/settings");
+}
+
+export function saveOpenAIKey(apiKey) {
+  return request("/settings/api-key", {
+    method: "POST",
+    body: JSON.stringify(apiKey)
+  });
+}
+
 export function fetchProcessProgress() {
   return request("/process-progress");
 }

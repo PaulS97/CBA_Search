@@ -9,8 +9,10 @@ import {
   fetchLatestResults,
   fetchProcessProgress,
   fetchQaProgress,
+  fetchSettings,
   processDocuments,
-  runQuestions
+  runQuestions,
+  saveOpenAIKey
 } from "./lib/api";
 
 function makeDisplayColumns(overrides = {}) {
@@ -62,9 +64,16 @@ const DEFAULT_QUESTIONS = [
 
 
 export default function App() {
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [apiKeyConfigured, setApiKeyConfigured] = useState(false);
+  const [showApiKeyForm, setShowApiKeyForm] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [apiKeySaving, setApiKeySaving] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState("");
+
   const [processForm, setProcessForm] = useState({
     root: "/Users/paulseham/Documents/CBA_Search/Industry Data Project/",
-    nameContains: "(cba or collective or agreement or contract) and twu",
+    nameContains: "(cba or collective or agreement or contract)",
     dryRun: false,
     force: false
   });
@@ -90,6 +99,20 @@ export default function App() {
     : null;
 
   useEffect(() => {
+    fetchSettings()
+      .then((payload) => {
+        const configured = Boolean(payload.openai_api_key_configured);
+        setApiKeyConfigured(configured);
+        setShowApiKeyForm(!configured);
+      })
+      .catch((error) => {
+        setApiKeyError(error.message);
+        setShowApiKeyForm(true);
+      })
+      .finally(() => {
+        setSettingsLoading(false);
+      });
+
     fetchLatestResults()
       .then((payload) => {
         if (payload.process_documents) {
@@ -192,8 +215,30 @@ export default function App() {
     }
   }
 
+  async function handleSaveApiKey(event) {
+    event.preventDefault();
+    setApiKeyError("");
+    setApiKeySaving(true);
+
+    try {
+      const payload = await saveOpenAIKey(apiKeyInput);
+      setApiKeyConfigured(Boolean(payload.openai_api_key_configured));
+      setShowApiKeyForm(false);
+      setApiKeyInput("");
+    } catch (error) {
+      setApiKeyError(error.message);
+    } finally {
+      setApiKeySaving(false);
+    }
+  }
+
   async function handleProcessDocuments() {
     setProcessError("");
+    if (!apiKeyConfigured) {
+      setProcessError("Enter OpenAI API key to continue.");
+      setShowApiKeyForm(true);
+      return;
+    }
     setProcessLoading(true);
     setProcessProgress({
       status: "running",
@@ -299,6 +344,12 @@ export default function App() {
     setQuestionError("");
     setQuestionCancelRequested(false);
 
+    if (!apiKeyConfigured) {
+      setQuestionError("Enter OpenAI API key to continue.");
+      setShowApiKeyForm(true);
+      return;
+    }
+
     const numberQuestionMissingUnit = questions.find(
       (question) => question.answerType === "number" && !question.unit.trim()
     );
@@ -384,33 +435,98 @@ export default function App() {
       </header>
 
       <main className="mainStack">
-        <ProcessDocumentsPanel
-          form={processForm}
-          onChange={updateProcessField}
-          onSubmit={handleProcessDocuments}
-          onChooseFolder={handleChooseFolder}
-          loading={processLoading}
-          folderPickerLoading={folderPickerLoading}
-          progress={processProgress}
-          summary={processResult?.summary}
-          records={processResult?.records}
-          error={processError}
-        />
+        {settingsLoading ? (
+          <section className="panel setupPanel">
+            <p className="panelHint">Checking settings...</p>
+          </section>
+        ) : (
+          <>
+            <section className="panel setupPanel">
+              {apiKeyConfigured && !showApiKeyForm ? (
+                <div className="settingsStatusRow">
+                  <strong>API key configured</strong>
+                  <button
+                    className="secondaryButton"
+                    type="button"
+                    onClick={() => {
+                      setApiKeyError("");
+                      setShowApiKeyForm(true);
+                    }}
+                  >
+                    Update API key
+                  </button>
+                </div>
+              ) : (
+                <form className="apiKeyForm" onSubmit={handleSaveApiKey}>
+                  <div>
+                    <p className="eyebrow">Setup</p>
+                    <h2>Enter OpenAI API key to continue.</h2>
+                  </div>
+                  <label className="field">
+                    <span>OpenAI API key</span>
+                    <input
+                      type="password"
+                      value={apiKeyInput}
+                      onChange={(event) => setApiKeyInput(event.target.value)}
+                      autoComplete="off"
+                    />
+                  </label>
+                  <div className="actionRow">
+                    <button className="primaryButton" type="submit" disabled={apiKeySaving}>
+                      {apiKeySaving ? "Saving..." : "Save API key"}
+                    </button>
+                    {apiKeyConfigured ? (
+                      <button
+                        className="ghostButton"
+                        type="button"
+                        onClick={() => {
+                          setShowApiKeyForm(false);
+                          setApiKeyInput("");
+                          setApiKeyError("");
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    ) : null}
+                    {apiKeyError ? <p className="errorText">{apiKeyError}</p> : null}
+                  </div>
+                </form>
+              )}
+            </section>
 
-        <QuestionBuilderPanel
-          questions={questions}
-          onQuestionChange={updateQuestion}
-          onAddQuestion={addQuestion}
-          onRemoveQuestion={removeQuestion}
-          onRunQuestions={handleRunQuestions}
-          onCancelRun={handleCancelQuestionRun}
-          loading={questionLoading}
-          cancelRequested={questionCancelRequested}
-          progress={qaProgress}
-          error={questionError}
-        />
+            {apiKeyConfigured ? (
+              <>
+                <ProcessDocumentsPanel
+                  form={processForm}
+                  onChange={updateProcessField}
+                  onSubmit={handleProcessDocuments}
+                  onChooseFolder={handleChooseFolder}
+                  loading={processLoading}
+                  folderPickerLoading={folderPickerLoading}
+                  progress={processProgress}
+                  summary={processResult?.summary}
+                  records={processResult?.records}
+                  error={processError}
+                />
 
-        <ResultsTable resultSet={visibleQuestionResult} />
+                <QuestionBuilderPanel
+                  questions={questions}
+                  onQuestionChange={updateQuestion}
+                  onAddQuestion={addQuestion}
+                  onRemoveQuestion={removeQuestion}
+                  onRunQuestions={handleRunQuestions}
+                  onCancelRun={handleCancelQuestionRun}
+                  loading={questionLoading}
+                  cancelRequested={questionCancelRequested}
+                  progress={qaProgress}
+                  error={questionError}
+                />
+
+                <ResultsTable resultSet={visibleQuestionResult} />
+              </>
+            ) : null}
+          </>
+        )}
       </main>
     </div>
   );

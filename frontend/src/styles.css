@@ -90,6 +90,25 @@ p {
   gap: 24px;
 }
 
+.setupPanel {
+  display: grid;
+  gap: 18px;
+}
+
+.settingsStatusRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.apiKeyForm {
+  display: grid;
+  gap: 18px;
+  max-width: 720px;
+}
+
 .panel {
   position: relative;
   overflow: hidden;

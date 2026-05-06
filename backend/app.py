@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -18,6 +18,7 @@ from .services import (
     request_qa_cancel,
     run_questions_service,
 )
+from .settings import is_openai_api_key_configured, load_settings, save_openai_api_key
 
 
 class SPAStaticFiles(StaticFiles):
@@ -46,14 +47,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+load_settings()
+
+
+def require_openai_api_key() -> None:
+    if not is_openai_api_key_configured():
+        raise HTTPException(status_code=400, detail="OpenAI API key is not configured.")
+
 
 @app.get("/health")
 def healthcheck() -> dict:
     return {"ok": True}
 
 
+@app.get("/settings")
+def get_settings() -> dict:
+    return {"openai_api_key_configured": is_openai_api_key_configured()}
+
+
+@app.post("/settings/api-key")
+def update_openai_api_key(api_key: str = Body(...)) -> dict:
+    try:
+        save_openai_api_key(api_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"openai_api_key_configured": True}
+
+
 @app.post("/process-documents")
 async def process_documents(request: ProcessDocumentsRequest) -> dict:
+    require_openai_api_key()
     try:
         return await run_in_threadpool(process_documents_service, request)
     except Exception as exc:
@@ -62,6 +85,7 @@ async def process_documents(request: ProcessDocumentsRequest) -> dict:
 
 @app.post("/run-questions")
 async def run_questions(request: RunQuestionsRequest) -> dict:
+    require_openai_api_key()
     try:
         return await run_in_threadpool(run_questions_service, request)
     except Exception as exc:
