@@ -33,3 +33,8 @@ class RunQuestionsRequest(BaseModel):
     output_prefix: str = "ui_results"
     limit_docs: int | None = None
     limit_questions: int | None = None
+
+
+class ExportCsvRequest(BaseModel):
+    filename: str = Field(..., min_length=1)
+    csv_text: str = Field(..., min_length=1)

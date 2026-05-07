@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-import { exportWideResultsCsv } from "../lib/exportWideResultsCsv";
+import { saveWideCsvExport } from "../lib/api";
+import { buildWideResultsCsvExport } from "../lib/exportWideResultsCsv";
 
 function getDisplayColumns(question) {
   return {
@@ -268,6 +269,9 @@ function getRenderedColumnCount(questions) {
 
 export default function ResultsTable({ resultSet }) {
   const [answerFilters, setAnswerFilters] = useState({});
+  const [exportStatus, setExportStatus] = useState("");
+  const [exportError, setExportError] = useState("");
+  const [exportLoading, setExportLoading] = useState(false);
 
   if (!resultSet?.wide_results?.length) {
     return (
@@ -293,11 +297,26 @@ export default function ResultsTable({ resultSet }) {
   ).length;
   const renderedColumnCount = getRenderedColumnCount(resultSet.questions);
 
-  function handleExportCsv() {
-    exportWideResultsCsv({
+  async function handleExportCsv() {
+    setExportStatus("");
+    setExportError("");
+    const exportPayload = buildWideResultsCsvExport({
       ...resultSet,
       wide_results: filteredRows
     });
+    if (!exportPayload) {
+      return;
+    }
+
+    setExportLoading(true);
+    try {
+      const payload = await saveWideCsvExport(exportPayload);
+      setExportStatus(`Saved CSV to ${payload.path}`);
+    } catch (error) {
+      setExportError(error.message);
+    } finally {
+      setExportLoading(false);
+    }
   }
 
   function toggleDiscreteFilter(questionId, value) {
@@ -348,11 +367,19 @@ export default function ResultsTable({ resultSet }) {
             One row per document, with answer, compact notes, and quoted language for each
             question.
           </p>
-          <button className="secondaryButton exportButton" type="button" onClick={handleExportCsv}>
-            Export CSV
+          <button
+            className="secondaryButton exportButton"
+            type="button"
+            onClick={handleExportCsv}
+            disabled={exportLoading}
+          >
+            {exportLoading ? "Exporting..." : "Export CSV"}
           </button>
         </div>
       </div>
+
+      {exportStatus ? <p className="successText">{exportStatus}</p> : null}
+      {exportError ? <p className="errorText">{exportError}</p> : null}
 
       <div className="summaryGrid">
         <div className="summaryCard">

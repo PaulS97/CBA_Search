@@ -302,6 +302,11 @@ p {
   font-weight: 600;
 }
 
+.successText {
+  color: #176c4c;
+  font-weight: 600;
+}
+
 .progressCard {
   display: grid;
   gap: 12px;

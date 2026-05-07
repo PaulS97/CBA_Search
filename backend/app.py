@@ -8,7 +8,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from runtime_paths import FRONTEND_DIST
 
-from .schemas import ProcessDocumentsRequest, RunQuestionsRequest
+from .schemas import ExportCsvRequest, ProcessDocumentsRequest, RunQuestionsRequest
 from .services import (
     choose_folder_service,
     get_latest_results,
@@ -17,6 +17,7 @@ from .services import (
     process_documents_service,
     request_qa_cancel,
     run_questions_service,
+    save_wide_export_csv_service,
 )
 from .settings import is_openai_api_key_configured, load_settings, save_openai_api_key
 
@@ -95,6 +96,14 @@ async def run_questions(request: RunQuestionsRequest) -> dict:
 @app.post("/run-questions/cancel")
 def cancel_run_questions() -> dict:
     return request_qa_cancel()
+
+
+@app.post("/exports/wide-csv")
+def save_wide_export_csv(request: ExportCsvRequest) -> dict:
+    try:
+        return save_wide_export_csv_service(request)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/choose-folder")

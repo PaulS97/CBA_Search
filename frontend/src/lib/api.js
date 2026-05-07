@@ -71,3 +71,10 @@ export function cancelRunQuestions() {
     method: "POST"
   });
 }
+
+export function saveWideCsvExport(payload) {
+  return request("/exports/wide-csv", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}

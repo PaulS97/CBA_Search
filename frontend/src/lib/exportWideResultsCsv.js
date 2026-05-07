@@ -111,20 +111,32 @@ function makeExportFilename() {
   return `cba_search_results_${timestamp}.csv`;
 }
 
-export function exportWideResultsCsv(resultSet) {
+export function buildWideResultsCsvExport(resultSet) {
   if (!resultSet?.wide_results?.length || !resultSet?.questions?.length) {
-    return;
+    return null;
   }
 
   const headers = buildHeaders(resultSet.questions);
   const rows = buildRows(resultSet);
-  const csvText = buildCsvText(headers, rows);
+  return {
+    filename: makeExportFilename(),
+    csv_text: buildCsvText(headers, rows)
+  };
+}
+
+export function exportWideResultsCsv(resultSet) {
+  const exportPayload = buildWideResultsCsvExport(resultSet);
+  if (!exportPayload) {
+    return;
+  }
+
+  const csvText = exportPayload.csv_text;
   const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
 
   link.href = url;
-  link.download = makeExportFilename();
+  link.download = exportPayload.filename;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

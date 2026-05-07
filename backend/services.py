@@ -8,10 +8,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from threading import Event, Lock
 
+from runtime_paths import OUTPUTS_DIR
 from ingest_folder import run_ingest
 from answer_question_set import run_question_set
 
-from .schemas import ProcessDocumentsRequest, QuestionInput, RunQuestionsRequest
+from .schemas import ExportCsvRequest, ProcessDocumentsRequest, QuestionInput, RunQuestionsRequest
 
 
 LATEST_RESULTS = {
@@ -84,6 +85,38 @@ DATE_SEARCH_PATTERNS = (
     re.compile(r"\b\d{4}/\d{2}/\d{2}\b"),
     re.compile(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{4}\b"),
 )
+
+
+def sanitize_export_filename(filename: str) -> str:
+    """Keep export filenames local and predictable."""
+    cleaned = Path(filename).name.strip()
+    cleaned = re.sub(r"[^A-Za-z0-9._ -]+", "_", cleaned)
+    cleaned = cleaned.strip(" .")
+    if not cleaned:
+        cleaned = "cba_search_results.csv"
+    if not cleaned.lower().endswith(".csv"):
+        cleaned = f"{cleaned}.csv"
+    return cleaned
+
+
+def get_export_dir() -> Path:
+    """Prefer Downloads for user-facing exports, with outputs as fallback."""
+    downloads_dir = Path.home() / "Downloads"
+    if downloads_dir.exists() and downloads_dir.is_dir():
+        return downloads_dir
+    return OUTPUTS_DIR
+
+
+def save_wide_export_csv_service(request: ExportCsvRequest) -> dict:
+    export_dir = get_export_dir()
+    export_dir.mkdir(parents=True, exist_ok=True)
+    filename = sanitize_export_filename(request.filename)
+    export_path = export_dir / filename
+    export_path.write_text(request.csv_text, encoding="utf-8", newline="")
+    return {
+        "ok": True,
+        "path": str(export_path),
+    }
 
 
 def slugify_question_id(value: str) -> str:

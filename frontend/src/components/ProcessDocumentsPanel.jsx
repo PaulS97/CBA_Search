@@ -62,7 +62,7 @@ export default function ProcessDocumentsPanel({
               type="text"
               value={form.root}
               onChange={(event) => onChange("root", event.target.value)}
-              placeholder="/Users/paulseham/Documents/CBA_Search/Industry Data Project/Air Canada"
+              placeholder="Path to document folder"
             />
             <button
               className="secondaryButton pathPickerButton"

@@ -40,7 +40,7 @@ function makeQuestion(overrides = {}) {
     clientId: crypto.randomUUID(),
     questionName: "",
     questionText: "",
-    answerType: "number",
+    answerType: "short_answer",
     unit: "",
     description: "",
     rankingDirection: "descending",
@@ -72,8 +72,8 @@ export default function App() {
   const [apiKeyError, setApiKeyError] = useState("");
 
   const [processForm, setProcessForm] = useState({
-    root: "/Users/paulseham/Documents/CBA_Search/Industry Data Project/",
-    nameContains: "(cba or collective or agreement or contract)",
+    root: "",
+    nameContains: "(cba or collective or agreement or contract) not copy",
     dryRun: false,
     force: false
   });
@@ -157,6 +157,9 @@ export default function App() {
 
   function updateProcessField(field, value) {
     setProcessForm((current) => ({ ...current, [field]: value }));
+    if (field === "root" && value.trim()) {
+      setProcessError("");
+    }
   }
 
   async function pollProcessProgress() {
@@ -234,6 +237,12 @@ export default function App() {
 
   async function handleProcessDocuments() {
     setProcessError("");
+    const root = processForm.root.trim();
+    if (!root) {
+      setProcessError("Please choose a folder before processing documents.");
+      return;
+    }
+
     if (!apiKeyConfigured) {
       setProcessError("Enter OpenAI API key to continue.");
       setShowApiKeyForm(true);
@@ -255,7 +264,7 @@ export default function App() {
 
     try {
       const payload = await processDocuments({
-        root: processForm.root,
+        root,
         name_contains: processForm.nameContains,
         force: processForm.force,
         dry_run: processForm.dryRun
