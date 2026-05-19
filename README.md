@@ -2,6 +2,10 @@
 
 Search a corpus of collective bargaining agreements using retrieval-augmented generation (RAG) to extract relevant context and generate structured outputs in a dashboard for analysis.
 
+## Demonstration
+
+https://youtu.be/4MUg7I3DRfo
+
 ## Overview
 
 CBA Search allows you to ask structured questions across a set of contracts and receive consistent, analyzable results. It combines document retrieval with LLM-based reasoning to produce normalized outputs (e.g., dates, numeric values, boolean answers) that can be reviewed in a table format.
