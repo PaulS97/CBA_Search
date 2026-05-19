@@ -13,6 +13,7 @@ dist/
 # Your project-specific
 Industry Data Project/
 *.csv
+*.mov
 outputs/
 _rag_cache/
 _rag_cache_backup/
